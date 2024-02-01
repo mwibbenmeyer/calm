@@ -1,0 +1,4 @@
+01_calculate_ccps.R is the original script
+01_calculate_ccps2.R runs by state and saves csv files into state and frr folders ending with 2
+01_calculate_ccps_revised.R loads county geometry all at once
+01_calculate_ccps_revised2.R loads county geometry all at once + runs by state and saves csv files into folders ending with 1
