@@ -1,7 +1,7 @@
 # The RFF CALM model
 This repository contains code for the RFF CALM model, a model for simulating land use change and resulting carbon outcomes under alternative land use rent scenarios. The model's carbon module is decribed in detail [here](https://media.rff.org/documents/WP_23-39.pdf).
 ## System requirements
-CALM was built on Windows and uses R (v. 4.2.0) and Stata (v. 17). The model is run from R; however, in each time period, the executes a Stata .do file using the [RStata library](https://cran.r-project.org/web/packages/RStata/index.html). Therefore, the model must be run on a machine with both R and Stata installed.
+CALM was built on Windows and uses R (v. 4.2.0) and Stata (v. 17). The model is run from R; however, in each time period, the model executes a Stata .do file using the [RStata library](https://cran.r-project.org/web/packages/RStata/index.html). Therefore, the model must be run on a machine with both R and Stata installed.
 
 ## Data download
 Data required to run the CALM model can be downloaded HERE. Data include:
