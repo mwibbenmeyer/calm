@@ -6,12 +6,10 @@ identity <- function(x) x
 mod_returns <- function(data, crop_fn = identity,
                         forest_fn = identity,
                         other_fn = identity,
-                        CRP_fn = identity,
                         urban_fn = identity,
                         crop_counties = "all.fips",
                         forest_counties = "all.fips",
                         other_counties = "all.fips",
-                        CRP_counties = "all.fips",
                         urban_counties = "all.fips"
 ) {
   
@@ -19,7 +17,6 @@ mod_returns <- function(data, crop_fn = identity,
   
   if (crop_counties == "all.fips") crop_counties <- data2$fips
   if (forest_counties == "all.fips") forest_counties <- data2$fips
-  if (CRP_counties == "all.fips") CRP_counties <- data2$fips
   if (other_counties == "all.fips") other_counties <- data2$fips
   if (urban_counties == "all.fips") urban_counties <- data2$fips
   

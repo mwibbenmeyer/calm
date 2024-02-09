@@ -5,6 +5,7 @@ pacman::p_load(tidyverse,
                dplyr,
                readxl,
                sf,
+               tictoc,
                tidycensus,
                haven,
                stringr,
@@ -14,17 +15,9 @@ pacman::p_load(tidyverse,
                cdlTools,
                properties)
 
-#May need to modify this based on location of Stata executable on local machine
-options("RStata.StataPath" = "\"C:\\Program Files\\Stata17\\StataMP-64\"")
-options("RStata.StataVersion" = 17)
 
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) # sets directory to the current directory
-setwd('../../') # relative paths to move directory to the root project directory
-
-source("scripts/simulation/fn_modify_returns.R")
-settings = unlist(read.properties("scripts/simulation/settings.txt"))
-
-input_path <- "processing/simulation/input_data/"
+setwd('../../../../../') # relative paths to move directory to the root project directory
 
 # function to measure distances between counties
 measure_dists <- function(shp) {
@@ -37,16 +30,18 @@ measure_dists <- function(shp) {
 
 # Import data -------------------------------------------------------------
 
-# Model coefficient estimates, output from Stata
-est.path <- "results/initial_estimation/regs_2023-09/regs_2023-09-18_lcc.est"
-
 # Initial land uses by county and LCC
 df <- read_csv(sprintf("%s/sim_df.csv",input_path), 
-               col_types = cols(fips = "c")) %>% dplyr::select(c(-1)) %>% 
-  mutate(ecoregion = ifelse(fips == "46113", 331, ecoregion)) %>%     
-  as.data.table()
+               col_types = cols(fips = "c")) %>% dplyr::select(c(-1)) %>% as.data.table()
 
 ecoregions <- unique(df %>% as.data.frame %>% .[c("fips","ecoregion")])
+
+centroids <- st_centroid(sections %>% st_make_valid()) %>% 
+              dplyr::mutate(lon = sf::st_coordinates(.)[,1],
+                            lat = sf::st_coordinates(.)[,2])
+ggplot() + geom_sf(data = sections, 
+                   aes(fill = section)) + 
+  geom_text(data=centroids,aes(x=lon,y=lat,label=section))
 
 # import county shapefile using tidycensus - b19013_001 is arbitrarily chosen
 counties <- get_acs(geography = "county", year = 2010, variables = "B19013_001", geometry = TRUE) %>%
@@ -54,22 +49,26 @@ counties <- get_acs(geography = "county", year = 2010, variables = "B19013_001",
   rename(fips = GEOID) %>% 
   merge(ecoregions, by = "fips")
 
-# Returns by county and land use
-returns.df <- read_csv(sprintf("%s/returns.csv",input_path), 
-                       col_types = cols(fips = "c")) %>% select(c(-1))
-
-
 # Forest data --------------------------------------------------------------
 
-county_type <- read.csv("processing/net_returns/forest/county_type_product_harvestandprice.csv") %>%
+county_type <- read.csv("processing/net_returns/forest/county_type_product_harvestandprice.csv") %>% 
+  rbind(read.csv("processing/net_returns/forest/PNW_county_type_product_harvestandprice.csv")) %>% 
+  rbind(read.csv("processing/net_returns/forest/RM_county_type_product_harvestandprice.csv") %>% 
+          mutate(fips = str_pad(fips, side = "left", width = 5, pad = "0")) %>%
+          filter(substr(fips,1,2) != "48")) %>% # Filter out Texas observations which are erroneously included in RM file
   mutate(fips = str_pad(fips, side = "left", width = 5, pad = "0")) %>%
   mutate(fips = recode(fips, "46102" = "46113")) %>% 
   merge(ecoregions, by = "fips")
 
 co_sp_type <- read.csv("processing/net_returns/forest/county_species_product_harvestandprice.csv") %>% 
+  rbind(read.csv("processing/net_returns/forest/PNW_county_species_product_harvestandprice.csv")) %>% 
+  rbind(read.csv("processing/net_returns/forest/RM_county_species_product_harvestandprice.csv") %>% 
+          mutate(fips = str_pad(fips, side = "left", width = 5, pad = "0")) %>%
+          filter(substr(fips,1,2) != "48")) %>% # Filter out Texas observations which are erroneously included in RM file
   mutate(fips = str_pad(fips, side = "left", width = 5, pad = "0")) %>% 
   mutate(fips = recode(fips, "46102" = "46113")) %>% 
   merge(ecoregions, by = "fips")
+write.csv(co_sp_type, "processing/net_returns/forest/ALL_county_species_product_harvestandprice.csv")
 
 ecoregion_tot <- read.csv("processing/net_returns/forest/ecoregion_totals.csv") 
 
@@ -144,9 +143,12 @@ co_sp_softwood <- rbind(co_sp_type %>%
 # Function to interpolate missing shares based on within region proximity
 interpolate_shares <- function(data, prod, reg, species) { #FRR, yr, crop
   
+  print(sprintf("%s, %s, %s", prod, reg, species))
+  
   # subset by ecoregion and species
   df_sub <- data %>% as.data.table() %>% 
     .[product == prod & ecoregion == reg & spcd == species, c("fips","ecoregion","spcd","share")] %>% 
+    distinct() %>%
     merge(counties %>% filter(ecoregion == reg), all.y = T) %>% 
     mutate(spcd = ifelse(is.na(spcd), species, spcd)) %>% 
     arrange(fips)

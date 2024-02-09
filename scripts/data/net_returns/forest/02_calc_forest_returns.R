@@ -98,93 +98,40 @@ total_sp_prodn(forest_area = forest_area) %>% group_by(product,prodn.units) %>% 
 
 # Calculate returns ----------------------------------------------------------
 
-forest.returns <- merge(county_sp_prodn(forest_area), forest_prices[ , -"variable"], by = c("fips","spcd","product")) %>% 
+forest.returns1 <- merge(county_sp_prodn(forest_area), forest_prices[ , -"variable"], by = c("fips","spcd","product")) %>% 
                     .[ , .(revenue = sum(price*species.prodn, na.rm = T)), by = c("fips","product")] %>% 
                     merge(forest_area, by = "fips") %>% 
-                    .[ , .(return = sum(revenue/(forest_acresk*1000))), by = "fips"]
+                    .[ , .(forest_nr = sum(revenue/(forest_acresk*1000))), by = "fips"]
 
 # Some counties are missing - For these, calculate returns as average of nonmissing returns in same ecological section
-missing.counties <- counties[which(counties$fips %ni% forest.returns$fips), ]$fips
-
+missing.counties <- c(counties[which(counties$fips %ni% forest.returns1$fips), ]$fips,
+                         unique(forest.returns1[is.na(forest_nr),]$fips))
+                      
 ecoreg <- read_excel("raw_data/misc/ecoregions/Data/county to ecoregion.xls",sheet = "county to ecoregion") %>% 
             rename(fips = Fips) %>% 
             mutate(fips = str_pad(fips, side = "left", width = 5, pad = "0"),
                    section = paste0(P,S)) %>%
-            mutate(fips = ifelse(fips == "12025","12086",fips))
+            mutate(fips = ifelse(fips == "12025","12086",fips),
+                   fips = ifelse(fips == "51560","51005",fips),
+                   fips = ifelse(fips == "51780","51083",fips),
+                   fips = ifelse(fips == "30113","30031",fips))
 ecoreg <- ecoreg %>% 
             rbind(ecoreg %>% filter(fips == "01087") %>% 
                     mutate(fips = "01101", County = "Montgomery")) %>%  # Add missing Montgomery county = neighboring Macon county
             rbind(ecoreg %>% filter(fips == "08013") %>% 
                     mutate(fips = "08014", County = "Broomfield")) %>%  # Add missing Broomfield county = neighboring Boulder county
-            mutate(missing = as.numeric(fips %in% missing.counties))
+            mutate(missing = as.numeric(fips %in% missing.counties),
+                   missing = ifelse(fips == "11001",1,missing))
 
-forest.returns2 <- forest.returns %>% 
+forest.returns <- forest.returns1 %>% 
                     merge(ecoreg %>% select(fips,section,missing), all.y = T) %>% 
                     # Recode select ecoregions because returns are entirely missing in some ecoregions
                     .[section == 3223, section := 3222] %>% 
-                    .[section == 3426, section := 3319] %>% 
-                    .[section == 3425, section := 3314] %>% 
-                    .[ , mean.returns := mean(return, na.rm = TRUE), by = section] %>% 
-                    .[ , return := ifelse(missing == 1, mean.returns, return)]
-              
+                    .[section == 3421, section := 3427] %>% 
+                    .[section == 3425, section := 3427] %>% 
+                    .[section == 3426, section := 3427] %>%    
+                    # Set returns equal to mean return within nearest adjacent ecological section within same province
+                    .[ , mean.returns := mean(forest_nr, na.rm = TRUE), by = section] %>% 
+                    .[ , forest_nr := ifelse(missing == 1, mean.returns, forest_nr)]
 
-
-                  # 
-# 
-# # CHECKS
-# 
-# Check 1 - Try to reproduce total sawtimber/pulp production
-county_prodn <- county_sp_prodn(forest_area) %>%
-  .[ , .(prodn = sum(species.prodn, na.rm = T)) , by = c("fips","product")]
-
-test <- county_type %>% as.data.table() %>%
-        .[ , ':=' (sawtimber = rem_saw_mbf,
-                             pulp = rem_pulp_gt)] %>%
-  melt(value.name = "orig.prodn", variable.name = "product", measure.vars = c("sawtimber","pulp"), id.vars = c("fips","sptype")) %>%
-  .[ , .(orig.prodn = sum(orig.prodn, na.rm = T)), by = c("fips","product")]
-
-ggplot(data = merge(county_prodn, test, by = c("fips","product"))) +
-  geom_point(aes(x = orig.prodn, y = prodn)) +
-  geom_function(fun = function(x) x) +
-  facet_wrap(~product)
-# 
-# # Check 2 - Reproduce returns using data provided by Dave
-# 
-test <- co_sp_type %>% as.data.table() %>%
-          .[ , ":=" (saw_prodn = rem_saw_mbf,
-                     pulp_prodn = rem_pulp_gt,
-                     pulp_price = pulp_p,
-                     saw_price = saw_p)] %>%
-          .[ , c("fips","spcd","saw_prodn","pulp_prodn","saw_price","pulp_price")] %>%
-          melt(id.vars = c("fips","spcd"), measure = patterns("*_prodn","*_price")) %>%
-          arrange(fips,spcd) %>%
-          .[ , ":=" (prodn = value1,
-                     price = value2)] %>%
-          mutate(product = recode(as.character(variable), "1" = "sawtimber", "2" = "pulp")) %>%
-          .[ , c("fips","spcd","product","price","prodn")]
-
-test2 <- merge(test, shares, by = c("fips","spcd","product"), all.x = T) %>%
-  .[ , .(val.prodn = sum(price*prodn, na.rm = T)) , by = c("fips","product","sptype")] %>%
-  .[ , .(val.prodn = sum(val.prodn, na.rm = T)), by = c("fips")] %>%
-  merge(forest_area, by = "fips") %>%
-  .[ , returns := val.prodn/(forest_acresk*1000)]
-test2
-
-ggplot(data = merge(returns, returns.df, by = "fips")) +
-  geom_point(aes(x = forest_nr, y = return)) +
-  geom_function(fun = function(x) x)
-
-ggplot(data = merge(counties, forest.returns2, by = "fips") %>%
-         mutate(return = ifelse(return > 150,150,return))) +
-  geom_sf(aes(fill = return))
-
-
-# Sample data
-dt <- data.table(
-  group = c("A", "A", "A", "B", "B", "B"),
-  value = c(10, 20, 0, 30, 40, 50),
-  missing = c(FALSE, FALSE, TRUE, FALSE, FALSE, TRUE)
-)
-
-# Calculate mean within groups, excluding missing values
-dt[, .(mean_value = ifelse(all(missing), NA, mean(value, na.rm = TRUE))), by = group]
+write.csv(forest.returns[c(fips,forest_nr)], "processing/net_returns/forest/smoothed_forest_nr.csv")
