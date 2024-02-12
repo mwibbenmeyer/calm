@@ -48,7 +48,8 @@ counties <- get_acs(geography = "county", year = 2010, variables = "B19013_001",
   select(-c("variable","estimate","moe")) %>% 
   rename(fips = GEOID) %>% 
   merge(ecoregions, by = "fips")
-
+##################################################################################
+##################################################################################
 # Forest data --------------------------------------------------------------
 
 county_type <- read.csv("processing/net_returns/forest/county_type_product_harvestandprice.csv") %>% 
@@ -72,6 +73,7 @@ write.csv(co_sp_type, "processing/net_returns/forest/ALL_county_species_product_
 
 ecoregion_tot <- read.csv("processing/net_returns/forest/ecoregion_totals.csv") 
 
+##################################################################################
 # Calculate shares of removals within each species type that are sawtimber and pulpwood
 share_rem <- county_type %>% 
   group_by(ecoregion, sptype) %>% 
@@ -85,6 +87,7 @@ share_rem <- county_type %>%
   dplyr::select("ecoregion", "sptype", starts_with("share"))
 write.csv(share_rem, "processing/net_returns/forest/removal_product_share.csv")
 
+##################################################################################
 # Calculate harvest rates by species type (annual)
 harv_rates <- county_type %>% 
   group_by(ecoregion, sptype) %>%
@@ -98,7 +101,7 @@ harv_rates <- harv_rates %>%
   dplyr::select("ecoregion","sptype","harv_rate")
 write.csv(harv_rates, "processing/net_returns/forest/sptype_harv_rates.csv")
 
-
+##################################################################################
 # Calculate cubic feet per acre for each species type
 co_forest <- df[final_use == "Forest", .(forest_acres = sum(initial_acres, na.rm = T)), by = "fips"]
 cf_per_acresk <- merge(county_type, co_forest, by = "fips") %>% 
@@ -106,7 +109,7 @@ cf_per_acresk <- merge(county_type, co_forest, by = "fips") %>%
   dplyr::select("fips","sptype","cf_per_acresk")
 write.csv(cf_per_acresk, "processing/net_returns/forest/sptype_cf_per_acresk.csv")
 
-
+##################################################################################
 # Calculate species-product shares within hardwood/softwood harvests
 co_sp_hardwood <- rbind(co_sp_type %>% 
                           filter(spcd >= 300) %>% 
@@ -123,8 +126,6 @@ co_sp_hardwood <- rbind(co_sp_type %>%
                                  product = "pulp") %>% 
                           dplyr::select(fips,ecoregion,spcd,product,share)) 
 
-
-# Calculate species-product shares within hardwood/softwood harvests
 co_sp_softwood <- rbind(co_sp_type %>% 
                           filter(spcd < 300) %>% 
                           group_by(fips) %>% 
@@ -188,3 +189,41 @@ sw <- do.call(rbind, lapply(c("sawtimber","pulp"), function(p)
       interpolate_shares(co_sp_softwood, reg = r, species = s, prod = p)))))))
 toc()
 write.csv(sw, "processing/net_returns/forest/sp_product_shares_softwood.csv")
+
+##################################################################################
+# Calculate forest prices data frame
+
+fp_template <- rbind(data.frame(CJ(fips = unique(forest_area$fips), spcd = unique(shares$spcd)), product = "pulp"),
+data.frame(CJ(fips = unique(forest_area$fips), spcd = unique(shares$spcd)), product = "sawtimber"))
+forest_prices <- read.csv(sprintf("%s/forest_return_inputs/ALL_county_species_product_harvestandprice.csv", input_path)) %>% 
+  as.data.table() %>% 
+  .[ , fips := str_pad(fips, width = 5, side = "left", pad = "0")] %>%
+  melt(id.vars = c("fips","spcd","ecoregion"),
+       measure.vars = c("pulp_p","saw_p"),
+       value.name = c("price")) %>% 
+  .[ , product := recode(variable, "pulp_p" = "pulp",
+                         "saw_p" = "sawtimber")] %>% 
+  # Convert pulp prices from GT to cf and sawtimber prices from mbf to cf.
+  .[product == "pulp", price_cf := price*0.07] %>%
+  .[product == "sawtimber", price_cf := price/83.3333] %>% 
+  .[ , c("fips","spcd","product","ecoregion","price","price_cf"), with = FALSE]
+# Fill in missing prices in counties that are completely missing in inventory data
+price.missing <- unique(forest_area[which(forest_area$fips %ni% forest_prices$fips),]$fips) 
+forest_prices <- forest_prices %>% 
+  merge(fp_template, by = c("fips", "spcd", "product"), all.y = T) %>% 
+  .[ , missing := as.numeric(fips %in% price.missing)] %>% 
+  merge(ecoreg %>% select(fips, section), by = "fips") %>% 
+  .[!is.na(spcd), ] %>% 
+  # Recode select ecoregions because inventory data are entirely missing in some ecoregions
+  .[section == 3223, section := 3222] %>% 
+  .[section == 3421, section := 3427] %>% 
+  .[section == 3425, section := 3427] %>% 
+  .[section == 3426, section := 3427] %>% 
+  # Set prodn per acre in missing counties equal within nearest adjacent ecological section within same province
+  .[ , mean_price := mean(price, na.rm = TRUE), by = c("spcd","product","section")] %>% 
+  .[ , price := ifelse(missing == 1, mean_price, price)] %>% 
+  .[ , c("missing","mean_price") := NULL ]
+
+write.csv(sw, "processing/net_returns/forest/county_sp_product_prices.csv")
+
+
