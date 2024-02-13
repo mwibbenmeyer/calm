@@ -22,8 +22,9 @@ options("RStata.StataVersion" = 17)
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) # sets directory to the current directory
 setwd('../../') # relative paths to move directory to the root project directory
 
-input_path <- "processing/calm_inputs/"
-output_path <- "processing/simulation/"
+wd <- "L:/Project-Land_Use/wibbenmeyer/" # Absolute file path of working directory. Must be absolute filepath for Stata compatibility
+input_path <- "../processing/calm_inputs/"
+output_path <- "../processing/simulation/"
 
 source("scripts/run_calm/functions/01a_run_sim.R") # Functions that run simulation
 source("scripts/run_calm/functions/01c_fn_modify_returns.R") # Function that can be used to modify land use returns under alternative scenarios

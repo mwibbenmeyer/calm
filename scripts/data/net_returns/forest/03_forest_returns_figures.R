@@ -26,7 +26,7 @@ returns <- returns %>%
           forest_nr.capped = pmin(forest_nr, 150))
 
 p1 <- plot_usmap(data = returns %>% mutate(fips = ifelse(fips == "46113", "46102", fips)), 
-                 values = "forest_nr.capped", 
+                 values = "forest_nr", 
                  color = NA, 
                  size=0, regions = "counties", exclude = c("AK","HI")) +
   scale_fill_viridis_c() +

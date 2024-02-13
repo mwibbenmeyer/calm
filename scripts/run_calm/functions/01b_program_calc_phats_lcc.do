@@ -1,34 +1,7 @@
-cd "L:/Project-Land_Use/"
-**cd "F:/Projects/land-use/"
-
-/* Lines to test program outside of R */ /*
-
-global input_path "processing/simulation/input_data/"
-
-import delimited "${input_path}//returns_crprev_urbannrsub_daveforestnr.csv", clear stringcols(2) numericcols(3 4 5 6 7)
-sort fips year
-tempfile returns
-save `returns', replace
-
-import delimited "results/initial_estimation/regs_2022-11/resid_${date}_lcc_3digits_st_replace_urban_daveforestnr.csv", clear stringcols(1)
-egen lccstar = group(lcc)
-drop lcc
-replace lccstar = lccstar - 1
-rename lccstar lcc
-tempfile residuals
-save `residuals', replace
-
-import delimited "${input_path}/sim_df_crprev_urbannrsub_daveforestnr.csv", clear stringcols(2)
-sort fips year
-
-merge m:1 fips year using `returns', nogen
-merge 1:1 fips year lcc initial_use final_use using `residuals' , nogen
-/* Unmatched observations are conversions out of urban or non-conversions (staying in same use) */
-*/
 
 /******************************************************************************/
 /* PROGRAM TO CALCULATE PREDICTED PROBABILITIES		    		 			*/
-run "scripts/estimation/regression/program_make_conv_dummies_newmodel2.do"
+run "scripts/run_calm/functions/program_make_conv_dummies.do"
 
 capture program drop calc_phat
 program calc_phat

@@ -195,7 +195,7 @@ write.csv(sw, "processing/net_returns/forest/sp_product_shares_softwood.csv")
 
 fp_template <- rbind(data.frame(CJ(fips = unique(forest_area$fips), spcd = unique(shares$spcd)), product = "pulp"),
 data.frame(CJ(fips = unique(forest_area$fips), spcd = unique(shares$spcd)), product = "sawtimber"))
-forest_prices <- read.csv(sprintf("%s/forest_return_inputs/ALL_county_species_product_harvestandprice.csv", input_path)) %>% 
+forest_prices <- read.csv(sprintf("../%s/forest_return_inputs/ALL_county_species_product_harvestandprice.csv", input_path)) %>% 
   as.data.table() %>% 
   .[ , fips := str_pad(fips, width = 5, side = "left", pad = "0")] %>%
   melt(id.vars = c("fips","spcd","ecoregion"),
@@ -224,6 +224,6 @@ forest_prices <- forest_prices %>%
   .[ , price := ifelse(missing == 1, mean_price, price)] %>% 
   .[ , c("missing","mean_price") := NULL ]
 
-write.csv(sw, "processing/net_returns/forest/county_sp_product_prices.csv")
+write.csv(forest_prices, "../processing/net_returns/forest/county_sp_product_prices.csv")
 
 

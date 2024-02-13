@@ -1,15 +1,20 @@
 
+`%ni%` <- Negate(`%in%`)
+
 # Import data -------------------------------------------------------------
 
 # Model coefficient estimates, output from Stata
-estimates <- sprintf("%s/coefficient_estimates.est", input_path)
+estimates <- sprintf("%scoefficient_estimates.est", input_path)
 
 # Initial land uses by county and LCC
 df <- read_csv(sprintf("%s/sim_df.csv",input_path), 
-               col_types = cols(fips = "c")) %>% dplyr::select(c(-1)) %>% as.data.table()
+               col_types = cols(fips = "c")) %>% dplyr::select(c(-1)) %>%
+        mutate(ecoregion = ifelse(fips == "46113", 331, ecoregion)) %>%     
+        as.data.table()
 
 # TAMM regions, needed for adjusting forest returns following Lubowski, Plantinga, Stavins
-tamm <- read_xlsx(sprintf("%s/tamm_regions.xlsx", input_path))
+tamm <- read_xlsx(sprintf("%s/tamm_regions.xlsx", input_path)) %>% 
+          rbind(data.frame(state = "MD", tamm_region = "Northeast")) # Add Maryland, which is missing
 tamm$stfips <- str_pad(cdlTools::fips(tamm$state), width = 2, pad = "0", side = "left")
 
 # Returns by county and land use
@@ -23,21 +28,55 @@ returns.df <- read_csv(sprintf("%s/returns.csv",input_path),
 crop_returns <- read_csv(sprintf("%s/crop_level_returns.csv", input_path)) %>% 
                   filter(year %in% seq(2007,2011)) # Need only these years for simulation
 
-# Forest demand elasticities, from Lubowski, Plantinga, and Stavins
-forest_demand_elasticities <- data.frame(regions = c("Pacific Northwest",
-                                                     "Pacific Southwest",
-                                                     "Rocky Mountains",
-                                                     "North Central",
-                                                     "South Central",
-                                                     "Southeast",
-                                                     "Northeast"),
-                                         e_dmd_forest = c(-0.3,
-                                                          -0.497,
-                                                          -0.054,
-                                                          -0.141,
-                                                          -0.193,
-                                                          -0.285,
-                                                          -0.029))
+# Forest returns data  ----------------------------------------------------
+
+cf_template <- CJ(fips = unique(df$fips), sptype = c("hardwood", "softwood"))
+cf_per_acresk <-      read.csv(sprintf("%s/forest_return_inputs/sptype_cf_per_acresk.csv", input_path)) %>% 
+  as.data.table() %>% 
+  .[ , fips := str_pad(fips, width = 5, side = "left", pad = "0")] %>% 
+  .[ , X := NULL]
+cf_per_acresk.complete <- cf_per_acresk %>% merge(cf_template, by = c("fips", "sptype"), all.y = T) # Make sure we have all combns of county and species type
+
+harv_rates <-         read.csv(sprintf("%s/forest_return_inputs/sptype_harv_rates.csv", input_path)) 
+rem_product_share <-  read.csv(sprintf("%s/forest_return_inputs/removal_product_share.csv", input_path))
+
+# Shares of each species (spcd) that go to sawtimber/pulpwood production
+hw_shares <-          read.csv(sprintf("%s/forest_return_inputs/sp_product_shares_hardwood.csv", input_path)) %>% 
+                        mutate(fips = str_pad(fips, width = 5, side = "left", pad = "0")) %>% 
+                        as.data.table()
+sw_shares <-          read.csv(sprintf("%s/forest_return_inputs/sp_product_shares_softwood.csv", input_path)) %>% 
+                        mutate(fips = str_pad(fips, width = 5, side = "left", pad = "0")) %>% 
+                        as.data.table()
+shares <-             rbind(hw_shares %>% mutate(sptype = "hardwood"),
+                        sw_shares %>% mutate(sptype = "softwood"))
+
+
+
+forest_prices <- read.csv(sprintf("%s/forest_return_inputs/county_sp_product_prices.csv", input_path)) %>% 
+                  mutate(fips = str_pad(fips, width = 5, side = "left", pad = "0")) %>% 
+                  mutate(stfips = substr(fips,1,2)) %>% 
+                  merge(tamm, by = "stfips") %>% 
+                  select(fips,spcd,product,price,tamm_region) %>% 
+                  as.data.table()
+
+# Ecoregion data - needed for filling in counties with limited forest inventory data
+ecoreg <- read_excel(sprintf("%s/forest_return_inputs/county to ecoregion.xls", input_path), sheet = "county to ecoregion") %>% 
+                  mutate(fips = str_pad(Fips, side = "left", width = 5, pad = "0"),
+                         section = paste0(P,S)) %>%
+                  select(-Fips) %>% 
+                  # Adjust FIPS codes for county FIPS code changes
+                  mutate(fips = ifelse(fips == "12025","12086",fips),
+                         fips = ifelse(fips == "51560","51005",fips),
+                         fips = ifelse(fips == "51780","51083",fips),
+                         fips = ifelse(fips == "30113","30031",fips))
+ecoreg <- ecoreg %>% 
+                  rbind(ecoreg %>% filter(fips == "01087") %>% 
+                          mutate(fips = "01101", County = "Montgomery")) %>%  # Add missing Montgomery county = neighboring Macon county
+                  rbind(ecoreg %>% filter(fips == "08013") %>% 
+                          mutate(fips = "08014", County = "Broomfield"))
+
+
+
 
 
 # Function to simulate land use change given a returns vector ---------------
@@ -53,14 +92,13 @@ simulate_luc <- function(df_input, returns, crop_returns,
   
   stata_src <- sprintf('
   
-    cd L:/Project-Land_Use/
-    qui do "scripts/run_calm/functions/01b_program_calc_phats_lcc.do"
-    
+    cd %s
+    do "scripts/run_calm/functions/01b_program_calc_phats_lcc.do"
     qui calc_phat using "%s"
     
-    ', estimates)
+    ', wd, estimates)
     
-  df.out <- stata(stata_src, data.in = df.r, data.out = TRUE)
+  df.out <- stata(stata_src, data.in = df.r, data.out = T)
   
   df.p <- df.out %>% select(fips,lcc, ecoregion, year, initial_use, final_use, initial_acres, phat) %>% 
     pivot_wider(id_cols = c("fips","lcc","ecoregion",'year',"initial_use"),
@@ -103,7 +141,8 @@ simulate_luc <- function(df_input, returns, crop_returns,
     dplyr::select(-final_acres) %>% 
     dplyr::select(fips, ecoregion, year, lcc, initial_use, final_use, initial_acres) %>% 
     merge(df.r %>% select(fips,lcc,year,initial_use,final_use,resid),
-          by = c('fips','lcc','year','initial_use','final_use'))
+          by = c('fips','lcc','year','initial_use','final_use')) %>% 
+    as.data.table()
   
 
   # Update crop returns
@@ -116,6 +155,10 @@ simulate_luc <- function(df_input, returns, crop_returns,
     returns.current <- returns
   }
   
+  # Update forest returns
+  if (endog_forest_returns == T) {
+    forest.update <- update_forest_returns(forest_prices = forest_prices, new = df.l, orig = df_input)
+  }
 
   return(list(df.l, df.c, returns.current, crop_returns.current))
   
@@ -130,8 +173,9 @@ run_sim <- function(returns = returns.df,
                     ) {
   
   sim <- df
-  returns.current <- returns
+  returns <- returns.df
   crop_returns.current <- crop_returns
+  
   carbon_input <- NULL
   
   for (int in seq(1,ints)) {
