@@ -31,39 +31,34 @@ measure_dists <- function(shp) {
 # Import data -------------------------------------------------------------
 
 # Initial land uses by county and LCC
-df <- read_csv(sprintf("%s/sim_df.csv",input_path), 
-               col_types = cols(fips = "c")) %>% dplyr::select(c(-1)) %>% as.data.table()
+df <- read_csv("processing/calm_inputs/sim_df.csv", 
+               col_types = cols(fips = "c")) %>% dplyr::select(c(-1)) %>% as.data.table() %>% 
+        .[fips == "46113", ecoregion := 331]
 
-ecoregions <- unique(df %>% as.data.frame %>% .[c("fips","ecoregion")])
-
-centroids <- st_centroid(sections %>% st_make_valid()) %>% 
-              dplyr::mutate(lon = sf::st_coordinates(.)[,1],
-                            lat = sf::st_coordinates(.)[,2])
-ggplot() + geom_sf(data = sections, 
-                   aes(fill = section)) + 
-  geom_text(data=centroids,aes(x=lon,y=lat,label=section))
+ecoregions <- unique(df %>% as.data.frame %>% .[c("fips","ecoregion")]) 
 
 # import county shapefile using tidycensus - b19013_001 is arbitrarily chosen
 counties <- get_acs(geography = "county", year = 2010, variables = "B19013_001", geometry = TRUE) %>%
   select(-c("variable","estimate","moe")) %>% 
-  rename(fips = GEOID) %>% 
+  dplyr::rename(fips = GEOID) %>% 
   merge(ecoregions, by = "fips")
+
 ##################################################################################
 ##################################################################################
 # Forest data --------------------------------------------------------------
 
-county_type <- read.csv("processing/net_returns/forest/county_type_product_harvestandprice.csv") %>% 
-  rbind(read.csv("processing/net_returns/forest/PNW_county_type_product_harvestandprice.csv")) %>% 
-  rbind(read.csv("processing/net_returns/forest/RM_county_type_product_harvestandprice.csv") %>% 
+county_type <- read.csv("processing/net_returns/forest/east_nonfed_county_type_product_harvestandprice.csv") %>% 
+  rbind(read.csv("processing/net_returns/forest/PNW_nonfed_county_type_product_harvestandprice.csv")) %>% 
+  rbind(read.csv("processing/net_returns/forest/RM_nonfed_county_type_product_harvestandprice.csv") %>% 
           mutate(fips = str_pad(fips, side = "left", width = 5, pad = "0")) %>%
           filter(substr(fips,1,2) != "48")) %>% # Filter out Texas observations which are erroneously included in RM file
   mutate(fips = str_pad(fips, side = "left", width = 5, pad = "0")) %>%
   mutate(fips = recode(fips, "46102" = "46113")) %>% 
   merge(ecoregions, by = "fips")
 
-co_sp_type <- read.csv("processing/net_returns/forest/county_species_product_harvestandprice.csv") %>% 
-  rbind(read.csv("processing/net_returns/forest/PNW_county_species_product_harvestandprice.csv")) %>% 
-  rbind(read.csv("processing/net_returns/forest/RM_county_species_product_harvestandprice.csv") %>% 
+co_sp_type <- read.csv("processing/net_returns/forest/east_nonfed_county_species_product_harvestandprice.csv") %>% 
+  rbind(read.csv("processing/net_returns/forest/PNW_nonfed_county_species_product_harvestandprice.csv")) %>% 
+  rbind(read.csv("processing/net_returns/forest/RM_nonfed_county_species_product_harvestandprice.csv") %>% 
           mutate(fips = str_pad(fips, side = "left", width = 5, pad = "0")) %>%
           filter(substr(fips,1,2) != "48")) %>% # Filter out Texas observations which are erroneously included in RM file
   mutate(fips = str_pad(fips, side = "left", width = 5, pad = "0")) %>% 
@@ -193,14 +188,16 @@ write.csv(sw, "processing/net_returns/forest/sp_product_shares_softwood.csv")
 ##################################################################################
 # Calculate forest prices data frame
 
-fp_template <- rbind(data.frame(CJ(fips = unique(forest_area$fips), spcd = unique(shares$spcd)), product = "pulp"),
-data.frame(CJ(fips = unique(forest_area$fips), spcd = unique(shares$spcd)), product = "sawtimber"))
-forest_prices <- read.csv(sprintf("../%s/forest_return_inputs/ALL_county_species_product_harvestandprice.csv", input_path)) %>% 
+fp_template <- rbind(data.frame(CJ(fips = unique(df$fips), spcd = unique(shares$spcd)), product = "pulp"),
+                  data.frame(CJ(fips = unique(df$fips), spcd = unique(shares$spcd)), product = "sawtimber"))
+forest_prices <- read.csv("processing/net_returns/forest/ALL_county_species_product_harvestandprice.csv") %>% 
   as.data.table() %>% 
   .[ , fips := str_pad(fips, width = 5, side = "left", pad = "0")] %>%
   melt(id.vars = c("fips","spcd","ecoregion"),
        measure.vars = c("pulp_p","saw_p"),
        value.name = c("price")) %>% 
+  as.data.table() %>% 
+  .[ , price := value] %>% 
   .[ , product := recode(variable, "pulp_p" = "pulp",
                          "saw_p" = "sawtimber")] %>% 
   # Convert pulp prices from GT to cf and sawtimber prices from mbf to cf.
@@ -208,7 +205,7 @@ forest_prices <- read.csv(sprintf("../%s/forest_return_inputs/ALL_county_species
   .[product == "sawtimber", price_cf := price/83.3333] %>% 
   .[ , c("fips","spcd","product","ecoregion","price","price_cf"), with = FALSE]
 # Fill in missing prices in counties that are completely missing in inventory data
-price.missing <- unique(forest_area[which(forest_area$fips %ni% forest_prices$fips),]$fips) 
+price.missing <- unique(df[which(df$fips %ni% forest_prices$fips),]$fips) 
 forest_prices <- forest_prices %>% 
   merge(fp_template, by = c("fips", "spcd", "product"), all.y = T) %>% 
   .[ , missing := as.numeric(fips %in% price.missing)] %>% 
@@ -224,6 +221,6 @@ forest_prices <- forest_prices %>%
   .[ , price := ifelse(missing == 1, mean_price, price)] %>% 
   .[ , c("missing","mean_price") := NULL ]
 
-write.csv(forest_prices, "../processing/net_returns/forest/county_sp_product_prices.csv")
+write.csv(forest_prices, "processing/net_returns/forest/county_sp_product_prices.csv")
 
 

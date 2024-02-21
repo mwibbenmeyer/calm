@@ -86,4 +86,4 @@ forest_prices <- read.csv(sprintf("%s/county_sp_product_prices.csv", input_path)
 
 forest.returns1 <- calc_forest_returns(forest_area = calc_forest_area(df.forest), prices = forest_prices)
 
-write.csv(forest.returns1[c(fips,forest_nr)], "processing/net_returns/forest/smoothed_forest_nr.csv")
+write.csv(forest.returns1[c(fips,forest_nr)], "../processing/net_returns/forest/smoothed_forest_nr.csv")

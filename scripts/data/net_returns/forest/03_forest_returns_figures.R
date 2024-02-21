@@ -26,7 +26,7 @@ returns <- returns %>%
           forest_nr.capped = pmin(forest_nr, 150))
 
 p1 <- plot_usmap(data = returns %>% mutate(fips = ifelse(fips == "46113", "46102", fips)), 
-                 values = "forest_nr", 
+                 values = "forest_nr.capped", 
                  color = NA, 
                  size=0, regions = "counties", exclude = c("AK","HI")) +
   scale_fill_viridis_c() +
@@ -39,7 +39,7 @@ ggsave("results/initial_descriptives/net_returns/forest/forest_returns_map_2012.
 
 p1 + geom_sf(data = ecoregion_sf, fill = NA, color = "black", lwd = 1)
 
-# plot map of returns with ecoregions -----------
+# plot map of returns with ecoregions -----------==
 
 p1b <- ggplot(data = returns %>% filter(year == 2012 & 
                                           lcc == "1_2" & initial_use == "Crop" & final_use == "Crop")) + 
