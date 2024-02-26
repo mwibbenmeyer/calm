@@ -20,10 +20,10 @@ forest_demand_elasticities <- data.frame(tamm_region = c("Pacific Northwest",
 
 # Update forest returns
 
-update_forest_returns <- function(forest_prices, new, orig, elasticities = forest_demand_elasticities) {
+update_forest_returns <- function(returns, forest_prices, new, orig, elasticities = forest_demand_elasticities) {
   
   # Calc change in total production for species x product
-  pct.change <- merge(total_sp_prodn(forest_area = calc_forest_area(old)),
+  pct.change <- merge(total_sp_prodn(forest_area = calc_forest_area(orig)),
                       total_sp_prodn(forest_area = calc_forest_area(new)),
                       by = c("spcd","product"),
                       suffixes = c(".new",".orig"))   %>% 
@@ -36,19 +36,21 @@ update_forest_returns <- function(forest_prices, new, orig, elasticities = fores
   
   # Based on change in production, update commodity prices
   forest_prices_2 <- forest_prices %>% 
-                      merge(pct.change.reg %>% 
-                              select(spcd, product, tamm_region, pct.change.p), by = c("spcd","product","tamm_region")) %>% 
+                      left_join(pct.change.reg %>% 
+                              dplyr::select(spcd, product, tamm_region, pct.change.p), by = c("spcd","product","tamm_region")) %>% 
                       .[ , price := price*((100 + pct.change.p)/100)] %>% 
                       select(fips,spcd,product,price,tamm_region)
 
   # Calculate new weighted average returns
   new_returns <- calc_forest_returns(calc_forest_area(new), forest_prices_2)
   
-  old_returns <- calc_forest_returns(calc_forest_area(old), forest_prices)
+  #Return updated returns data set and updated crop returns data set
+  updated_returns <- returns %>%
+                      dplyr::select(-forest_nr) %>% 
+                      merge(new_returns, by = "fips")
   
-
-      
-  
+  return(list(forest_prices_2, updated_returns))
+        
 }  
   
   

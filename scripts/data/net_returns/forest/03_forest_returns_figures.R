@@ -39,7 +39,7 @@ ggsave("results/initial_descriptives/net_returns/forest/forest_returns_map_2012.
 
 p1 + geom_sf(data = ecoregion_sf, fill = NA, color = "black", lwd = 1)
 
-# plot map of returns with ecoregions -----------==
+# plot map of returns with ecoregions -----------
 
 p1b <- ggplot(data = returns %>% filter(year == 2012 & 
                                           lcc == "1_2" & initial_use == "Crop" & final_use == "Crop")) + 

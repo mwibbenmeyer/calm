@@ -15,7 +15,7 @@ pacman::p_load(tidyverse,
                stringr,
                data.table)
 
-setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) ; setwd('../../') # relative paths to move directory to the root project directory
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) ; setwd('../../../') # relative paths to move directory to the root project directory
 
 ecoregion <- read_csv("processing/misc/ecoregions/interpolated_ecocd_counties.csv")
   
@@ -31,7 +31,7 @@ df <- haven::read_dta("processing/combined/ddc_data.dta") %>%
          lcc = as.numeric(lcc)) %>%
   as.data.table()   %>%
   .[ , .(initial_acres = sum(final_acres, na.rm = TRUE)), by = c("fips","lcc","year","final_use")] %>%
-  rename(initial_use = final_use) %>%
+  dplyr::rename(initial_use = final_use) %>%
   .[ , ":=" (Crop = 1, Forest = 1, Other = 1, Urban = 1)] %>%
   pivot_longer(cols = c('Crop','Forest','Other','Urban'),
                names_to = "final_use",
@@ -40,8 +40,8 @@ df <- haven::read_dta("processing/combined/ddc_data.dta") %>%
 
 # Merge residuals
 df <- left_join(df,
-                read.csv("results/initial_estimation/regs_2023-09/resid_2023-09-18_lcc.csv") %>% 
-                  rename(lcc = LCC) %>% 
+                read.csv("results/initial_estimation/regs_2024-02/resid_2022-02-22_lcc.csv") %>% 
+                  dplyr::rename(lcc = LCC) %>% 
                   mutate(fips = str_pad(as.character(fips), width = 5, side = "left", pad = "0"),
                          lcc = recode(lcc, "0" = "0",
                                       "1_2" = "1",
@@ -55,7 +55,7 @@ df <- left_join(df,
 df <- df %>%
   left_join(ecoregion %>% select(fips, ecoregion), by="fips")
 
-path = "processing/simulation/input_data/"
+path = "processing/calm_inputs/"
 dir.create(path, recursive = TRUE, showWarnings = FALSE)
 write.csv(df, sprintf("%ssim_df.csv",path))
 

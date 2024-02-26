@@ -24,7 +24,7 @@ calc_crop_prodn <- function(df) {
 
 
 # Function to update crop returns given changes in total land use -
-update_crop_returns <- function(crop_returns, new, orig, elasticity = -0.661) {
+update_crop_returns <- function(returns, crop_returns, new, orig, elasticity = -0.661) {
   
   # Default elasticity is from Goodwin and Brester, by way of LPS 2007
   
@@ -71,7 +71,7 @@ update_crop_returns <- function(crop_returns, new, orig, elasticity = -0.661) {
        by = c("county_fips")]
   
   #Return updated returns data set and updated crop returns data set
-  updated_returns <- returns.df %>% merge(county_returns, by.x = "fips", by.y = "county_fips") %>% 
+  updated_returns <- returns %>% merge(county_returns, by.x = "fips", by.y = "county_fips") %>% 
     mutate(crop_nr = weighted_returns) %>% 
     select(-weighted_returns)
   

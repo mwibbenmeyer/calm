@@ -32,16 +32,13 @@ county_sp_prodn <- function(forest_area) {
     .[ , ":=" (product = recode(variable, "county_saw_mbf" = "sawtimber",
                                 "county_pulp_gt" = "pulp"))] %>%
     .[ , ":=" (prodn.units = ifelse(product == "sawtimber","mbf","gt"))] %>% 
-    .[ , -c("variable")] %>% 
-    .[ , prodn := value]
+    .[ , -c("variable")] 
   
   sp_prodn <- sptype_production[ , c("fips", "sptype", "product", "prodn.units", "prodn") ] %>% 
     full_join(shares[ , c("fips","spcd", "sptype","product","share.w")], 
               by = c("fips", "product","sptype")) %>% as.data.table() %>% 
     .[ , species.prodn := prodn*share.w, ] %>% 
     merge(ecoreg %>% select(fips,section), by = "fips")
-  
-  
   
   return(sp_prodn)
   
@@ -92,11 +89,11 @@ total_sp_prodn <- function(forest_area) {
 calc_forest_returns <- function(forest_area, prices) {
   
   returns <- county_sp_prodn_missings(forest_area) %>%
-    merge(prices %>% select(-tamm_region), by = c("fips","spcd","product"))  %>% 
-    .[ , .(revenue = sum(price*species.prodn, na.rm = T)), by = c("fips","product")] %>% 
-    merge(forest_area, by = "fips") %>% 
-    .[ , .(forest_nr = sum(revenue/(forest_acresk*1000))), by = "fips"]
-  
+              merge(prices %>% select(-tamm_region), by = c("fips","spcd","product"))  %>% 
+              .[ , .(revenue = sum(price*species.prodn, na.rm = T)), by = c("fips","product")] %>% 
+              merge(forest_area, by = "fips") %>% 
+              .[ , .(forest_nr = sum(revenue/(forest_acresk*1000),na.rm = T)), by = "fips"]
+            
   return(returns)
   
 }

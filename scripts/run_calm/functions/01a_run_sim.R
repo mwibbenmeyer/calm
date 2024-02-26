@@ -81,7 +81,7 @@ ecoreg <- ecoreg %>%
 
 # Function to simulate land use change given a returns vector ---------------
 
-simulate_luc <- function(df_input, returns, crop_returns,
+simulate_luc <- function(df_input, returns, crop_returns, forest_returns,
                          endog_crop_returns = TRUE, endog_forest_returns = TRUE) {
   
   #Need to restrict to only crop because some rows in order to account for the variety of possible next-period uses
@@ -147,20 +147,25 @@ simulate_luc <- function(df_input, returns, crop_returns,
 
   # Update crop returns
   if (endog_crop_returns == T) {
-    crop.update <- update_crop_returns(crop_returns = crop_returns, new = df.l, orig = df_input)
-    crop_returns.current <- crop.update[[1]]
+    crop.update <- update_crop_returns(returns = returns, crop_returns = crop_returns, new = df.l, orig = df_input)
+    crop_level_returns.current <- crop.update[[1]]
     returns.current <- crop.update[[2]]
   } else {
-    crop_returns.current <- crop_returns
+    crop_level_returns.current <- crop_returns
     returns.current <- returns
   }
   
   # Update forest returns
   if (endog_forest_returns == T) {
-    forest.update <- update_forest_returns(forest_prices = forest_prices, new = df.l, orig = df_input)
+    forest.update <- update_forest_returns(returns = returns.current, forest_prices = forest_returns, new = df.l, orig = df_input)
+    forest_sp_returns.current <- forest.update[[1]]
+    returns.current <- forest.update[[2]]
+  } else {
+    forest_sp_returns.current <- forest_prices
+    returns.current <- returns.current
   }
 
-  return(list(df.l, df.c, returns.current, crop_returns.current))
+  return(list(df.l, df.c, returns.current, crop_level_returns.current, forest_sp_returns.current))
   
   }
 
@@ -173,8 +178,9 @@ run_sim <- function(returns = returns.df,
                     ) {
   
   sim <- df
-  returns <- returns.df
+  returns.current <- returns
   crop_returns.current <- crop_returns
+  forest_returns.current <- forest_prices
   
   carbon_input <- NULL
   
@@ -185,6 +191,7 @@ run_sim <- function(returns = returns.df,
     sim <- quiet(simulate_luc(df_input = sim, 
                               returns = returns.current, 
                               crop_returns = crop_returns.current,
+                              forest_returns = forest_returns.current,
                               endog_crop_returns = endog_crop_returns,
                               endog_forest_returns = endog_forest_returns))
     
@@ -194,7 +201,7 @@ run_sim <- function(returns = returns.df,
     #Save data frame for use in carbon model
     if (!is.na(scenario_name)) {
       results_path = sprintf("%s%s/", output_path, scenario_name)
-      dir.create(results_path, recursive = TRUE, showWarnings = FALSE)
+      dir.create(sprintf("%s/carbon_model_input/", results_path), recursive = TRUE, showWarnings = FALSE)
       write.csv(sim[[2]], sprintf("%s/carbon_model_input/timestep_%s.csv",results_path, int))
     }
     
@@ -203,6 +210,7 @@ run_sim <- function(returns = returns.df,
     #Update returns
     returns.current <- sim[[3]]
     crop_returns.current <- sim[[4]]
+    forest_returns.current <- sim[[5]]
 
     sim <- sim[[1]]
     

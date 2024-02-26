@@ -16,7 +16,7 @@ pacman::p_load(tidyverse,
                tidycensus,
                zoo)
 
-setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) ; setwd('../../../') # sets directory to the current directory
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) ; setwd('../../../../') # sets directory to the current directory
 
 
 ##################################################
@@ -42,7 +42,7 @@ crop_nr <- rbind(crop_nr, crop_nr %>%
 crop_nr <- crop_nr %>% 
             group_by(fips, year_rnd) %>% 
             summarize(crop_nr = mean(crop_nr, na.rm = T)) %>% 
-            rename(year = year_rnd)
+            dplyr::rename(year = year_rnd)
 
 
 # Forest returns ----------------------------------------------------------
@@ -71,7 +71,7 @@ crp_nr <- read_dta("processing/net_returns/CRP/CRPmerged.dta") %>%
               mutate(year_rnd = ifelse(year_rnd == 2017, 2015, year_rnd)) %>% 
               group_by(fips,year_rnd) %>% 
               summarize(CRP_nr = mean(CRP_nr, na.rm = T)) %>% 
-              rename(year = year_rnd)
+              dplyr::rename(year = year_rnd)
 
             
 # Pasture/range returns ---------------------------------------------------------
@@ -85,7 +85,7 @@ pasture_nr <- read_dta("processing/net_returns/NASS/pasturerents.dta") %>%
                 mutate(year_rnd = ifelse(year_rnd == 2017, 2015, year_rnd)) %>% 
                 group_by(fips,year_rnd) %>% 
                 summarize(pasture_nr = mean(pasture_nr, na.rm = T)) %>% 
-                rename(year = year_rnd)
+                dplyr::rename(year = year_rnd)
 
 ##################################################
 # Combine returns variables
@@ -147,7 +147,7 @@ combined_other <- merge(combined_long, other_returns, by = c("fips","year","use"
                 
 
 combined_final <- merge(combined, combined_other, by = c("fips","year")) %>% 
-                    select(-CRP_nr, -pasture_nr)
+                    select(-CRP_nr, -pasture_nr, -pop_growth)
 
 
 write.csv(combined_final ,"processing/net_returns/combined_returns_panel.csv")

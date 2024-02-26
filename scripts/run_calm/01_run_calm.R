@@ -26,12 +26,13 @@ wd <- "L:/Project-Land_Use/wibbenmeyer/" # Absolute file path of working directo
 input_path <- "../processing/calm_inputs/"
 output_path <- "../processing/simulation/"
 
-source("scripts/run_calm/functions/01a_run_sim.R") # Functions that run simulation
-source("scripts/run_calm/functions/01c_fn_modify_returns.R") # Function that can be used to modify land use returns under alternative scenarios
-source("scripts/run_calm/functions/01d_crop_returns_functions.R") # Functions used to recalculate crop returns following each period
-source("scripts/run_calm/functions/01e_forest_returns_functions.R") # Functions used to recalculate forest returns following each period
-source("scripts/run_calm/functions/01g_carbon-model.R") # Functions used to run carbon model---translate land use change to carbon flux
-
+suppressMessages({
+  source("scripts/run_calm/functions/01a_run_sim.R") # Functions that run simulation
+  source("scripts/run_calm/functions/01c_fn_modify_returns.R") # Function that can be used to modify land use returns under alternative scenarios
+  source("scripts/run_calm/functions/01d_crop_returns_functions.R") # Functions used to recalculate crop returns following each period
+  source("scripts/run_calm/functions/01e_forest_returns_functions.R") # Functions used to recalculate forest returns following each period
+  source("scripts/run_calm/functions/01g_carbon-model.R") # Functions used to run carbon model---translate land use change to carbon flux
+})
 
 sim_output <- run_sim(returns = returns.df, # Returns data frame. This can be modified using function in 01c_fn_modify_returns to explore alternative returns scenarios.
                       ints = 10, # Number of 5-year time intervals over which to run simulation
