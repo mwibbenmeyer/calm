@@ -4,7 +4,7 @@ This repository contains code for the RFF CALM model, a model for simulating lan
 CALM was built on Windows and uses R (v. 4.2.0) and Stata (v. 17). The model is run from R; however, in each time period, the model executes a Stata .do file using the [RStata library](https://cran.r-project.org/web/packages/RStata/index.html). Therefore, the model must be run on a machine with both R and Stata installed.
 
 ## Data download
-Data required to run the CALM model can be downloaded HERE. Data include:
+Data required to run the CALM model can be downloaded [here](https://www.dropbox.com/scl/fo/euk8wjrh2mu55nc3ai2xd/h?rlkey=xe1dxawxzt3y1k16mxnl8yhbt&dl=0). Data include:
 
 1) `coefficient_estimates.est` - A Stata .est file that contains coefficient estimates resulting from estimating the econometric land use model underlying CALM's land use module.
 2) `sim_df.csv` - A .csv file that containing land use transitions by land capability class and county. This data set defines the structure of the data that is read into the model and updated in each simulation period.
@@ -22,8 +22,9 @@ CALM can be run using the script `01_run_calm.R` (included within the `scripts/r
 options("RStata.StataPath" = "\"C:\\Program Files\\Stata17\\StataMP-64\"")
 options("RStata.StataVersion" = 17)
 ```
-2) **Change input and output paths** - The following lines set the directories within which the CALM input data (downloaded HERE) live, and to which resulting CALM outputs will be saved. These lines should be modified according to users' needs: 
+2) **Change input and output paths** - The following lines set the directories within which the CALM input data (downloaded [here](https://www.dropbox.com/scl/fo/euk8wjrh2mu55nc3ai2xd/h?rlkey=xe1dxawxzt3y1k16mxnl8yhbt&dl=0)) live, and to which resulting CALM outputs will be saved. These lines should be modified according to users' needs: 
 ```
+wd <- "L:/Project-Land_Use/wibbenmeyer"
 input_path <- "processing/calm_inputs/"
 output_path <- "processing/simulation/"
 ```
